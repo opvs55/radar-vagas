@@ -12,5 +12,5 @@ KEYWORDS_DEFAULT = [
     "educação", "ensino", "pedagogia",
 ]
 
-REQUEST_DELAY_SECONDS = 2
-MAX_RETRIES = 3
+REQUEST_DELAY_SECONDS = 1
+MAX_RETRIES = 2

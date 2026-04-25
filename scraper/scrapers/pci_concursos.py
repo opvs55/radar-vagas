@@ -31,19 +31,18 @@ class PCIConcursosScraper(BaseScraper):
                     continue
 
                 full_url = href if href.startswith("http") else BASE_URL + href
-                detail = self._get_detail(full_url)
 
                 jobs.append({
                     "source": self.source_name,
                     "source_url": full_url,
                     "title": title,
-                    "organization": detail.get("organization"),
-                    "description": detail.get("description"),
-                    "city": detail.get("city"),
-                    "state": detail.get("state"),
+                    "organization": None,
+                    "description": None,
+                    "city": None,
+                    "state": None,
                     "job_type": "concurso",
-                    "deadline": detail.get("deadline"),
-                    "raw_data": detail,
+                    "deadline": None,
+                    "raw_data": {},
                 })
 
         except Exception as e:
