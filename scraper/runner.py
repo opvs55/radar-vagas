@@ -15,8 +15,6 @@ from db import upsert_job, count_jobs
 from geocoder import run as geocode_all
 from scrapers.pci_concursos import PCIConcursosScraper
 from scrapers.vunesp import GranCursosScraper
-from scrapers.cebraspe import CebraspeScraper
-from scrapers.fcc import FCCScraper
 from scrapers.remotive import RemotiveScraper
 from scrapers.vagas_com_br import VagasComBrScraper, EmpregosComBrScraper
 from scrapers.adzuna import AdzunaScraper
@@ -71,8 +69,6 @@ def build_scrapers(keywords: list[str], locations: list[str] | None = None) -> l
         EmpregosComBrScraper(keywords=keywords),
         PCIConcursosScraper(keywords=keywords),
         GranCursosScraper(keywords=keywords),
-        CebraspeScraper(keywords=keywords),
-        FCCScraper(keywords=keywords),
         # Gupy — maior plataforma BR, com filtro por localização
         GupyScraper(keywords=keywords),
         # Vagas culturais
