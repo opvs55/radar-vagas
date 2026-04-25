@@ -14,7 +14,6 @@ from config import KEYWORDS_DEFAULT
 from db import upsert_job, count_jobs
 from geocoder import run as geocode_all
 from scrapers.pci_concursos import PCIConcursosScraper
-from scrapers.indeed import IndeedScraper
 from scrapers.vunesp import GranCursosScraper
 from scrapers.cebraspe import CebraspeScraper
 from scrapers.fcc import FCCScraper
@@ -75,11 +74,7 @@ def build_scrapers(keywords: list[str], locations: list[str] | None = None) -> l
         GupyScraper(keywords=keywords),
         # Vagas culturais
         ClickMuseusScraper(keywords=keywords),
-        # Indeed por cada localização do perfil
     ]
-
-    for loc in locs[:3]:  # max 3 localizações
-        scrapers.append(IndeedScraper(keywords=keywords, location=loc, max_pages=2))
 
     scrapers += [
         # Concursos públicos
