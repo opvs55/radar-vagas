@@ -26,6 +26,8 @@ from scrapers.clickmuseus import ClickMuseusScraper
 from scrapers.ciee import CIEEScraper
 from scrapers.iel import IELScraper
 from scrapers.jooble import JoobleScraper
+from scrapers.trabalha_brasil import TrabalhaBrasilScraper
+from scrapers.infojobs import InfoJobsScraper
 from scrapers.courses import scrape_all_courses
 from keywords_builder import build_keywords_from_profiles
 from enricher import run as enrich_all
@@ -76,6 +78,9 @@ def build_scrapers(keywords: list[str], locations: list[str] | None = None) -> l
         # Estágios e primeiro emprego
         CIEEScraper(keywords=keywords, location=primary_loc),
         IELScraper(keywords=keywords, location=primary_loc),
+        # Portais brasileiros adicionais
+        TrabalhaBrasilScraper(keywords=keywords, location=primary_loc),
+        InfoJobsScraper(keywords=keywords, location=primary_loc),
     ]
 
     scrapers += [
