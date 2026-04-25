@@ -44,8 +44,7 @@ class CIEEScraper(BaseScraper):
         jobs = []
         for page in range(1, self.max_pages + 1):
             url = (
-                "https://portal.ciee.org.br/vagas-de-estagio-e-jovem-aprendiz/"
-                f"?busca={requests.utils.quote(keyword)}&pagina={page}"
+                f"https://portal.ciee.org.br/vagas/?q={requests.utils.quote(keyword)}&page={page}"
             )
             try:
                 resp = requests.get(url, headers=HEADERS, timeout=15)

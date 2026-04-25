@@ -19,19 +19,9 @@ ESTADOS_BR = [
     "RO","RR","RS","SC","SE","SP","TO",
 ]
 
-# Todas as categorias do concursosnobrasil.com — sem restringir área
+# Apenas a página principal — traz concursos de todas as áreas (subcategorias retornam 404)
 CATEGORIAS_CNB = [
-    "",               # página principal (todos)
-    "saude/",
-    "administrativo/",
-    "tecnologia/",
-    "engenharia/",
-    "seguranca/",
-    "educacao/",
-    "juridico/",
-    "fiscal/",
-    "militar/",
-    "meio-ambiente/",
+    "",
 ]
 
 

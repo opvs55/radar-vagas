@@ -30,7 +30,10 @@ class TrabalhaBrasilScraper(BaseScraper):
         self.max_pages = max_pages
 
     def scrape(self) -> list[dict]:
-        jobs = []
+        # empregabrasil.mte.gov.br bloqueia SSL em ambientes CI — desativado
+        logger.info("TrabalhaBrasil: desativado (SSL bloqueado pelo gov.br em CI)")
+        return []
+        jobs = []  # noqa: unreachable
         for kw in self.keywords[:6]:
             jobs += self._fetch_api(kw)
             if not jobs:
