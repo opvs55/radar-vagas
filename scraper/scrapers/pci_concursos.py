@@ -30,11 +30,6 @@ class PCIConcursosScraper(BaseScraper):
                 if not title:
                     continue
 
-                if self.keywords:
-                    title_lower = title.lower()
-                    if not any(kw in title_lower for kw in self.keywords):
-                        continue
-
                 full_url = href if href.startswith("http") else BASE_URL + href
                 detail = self._get_detail(full_url)
 

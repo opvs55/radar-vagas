@@ -25,6 +25,9 @@ from scrapers.concursos_publicos import ConcursosNoBrasilScraper, ConcursoPublic
 from scrapers.remoteok import RemoteOKScraper
 from scrapers.gupy import GupyScraper
 from scrapers.clickmuseus import ClickMuseusScraper
+from scrapers.ciee import CIEEScraper
+from scrapers.iel import IELScraper
+from scrapers.jooble import JoobleScraper
 from scrapers.courses import scrape_all_courses
 from keywords_builder import build_keywords_from_profiles
 from enricher import run as enrich_all
@@ -74,6 +77,9 @@ def build_scrapers(keywords: list[str], locations: list[str] | None = None) -> l
         GupyScraper(keywords=keywords),
         # Vagas culturais
         ClickMuseusScraper(keywords=keywords),
+        # Estágios e primeiro emprego
+        CIEEScraper(keywords=keywords, location=primary_loc),
+        IELScraper(keywords=keywords, location=primary_loc),
     ]
 
     scrapers += [
@@ -83,6 +89,8 @@ def build_scrapers(keywords: list[str], locations: list[str] | None = None) -> l
         # Fontes com API key com localização primária
         AdzunaScraper(keywords=keywords, location=primary_loc),
         JSearchScraper(keywords=keywords, location=primary_loc),
+        # Jooble agrega Indeed, LinkedIn e outros (requer JOOBLE_API_KEY)
+        JoobleScraper(keywords=keywords, location=primary_loc),
     ]
 
     return scrapers

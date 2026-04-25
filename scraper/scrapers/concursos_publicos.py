@@ -19,87 +19,96 @@ ESTADOS_BR = [
     "RO","RR","RS","SC","SE","SP","TO",
 ]
 
+# Todas as categorias do concursosnobrasil.com — sem restringir área
+CATEGORIAS_CNB = [
+    "",               # página principal (todos)
+    "saude/",
+    "administrativo/",
+    "tecnologia/",
+    "engenharia/",
+    "seguranca/",
+    "educacao/",
+    "juridico/",
+    "fiscal/",
+    "militar/",
+    "meio-ambiente/",
+]
+
 
 class ConcursosNoBrasilScraper(BaseScraper):
     source_name = "concursosnobrasil"
 
     def __init__(self, keywords: list[str] | None = None):
         super().__init__()
-        self.keywords = [k.lower() for k in (keywords or [])]
+        # keywords ignoradas intencionalmente: concursos são mostrados de todas as áreas
 
     def scrape(self) -> list[dict]:
         jobs = []
         seen_orgs: set[str] = set()
-        url = "https://concursosnobrasil.com/concursos/"
 
-        try:
-            soup = self.get(url)
-            tables = soup.select("table")
+        for categoria in CATEGORIAS_CNB:
+            url = f"https://concursosnobrasil.com/concursos/{categoria}"
+            try:
+                soup = self.get(url)
+                tables = soup.select("table")
 
-            for table in tables:
-                # Cabeçalho da tabela pode ter nome do estado
-                header = table.find_previous(["h2", "h3", "h4", "strong"])
-                header_text = header.get_text(strip=True) if header else ""
+                for table in tables:
+                    header = table.find_previous(["h2", "h3", "h4", "strong"])
+                    header_text = header.get_text(strip=True) if header else ""
 
-                # Detectar estado pelo header
-                state = None
-                for uf in ESTADOS_BR:
-                    if uf in header_text.upper():
-                        state = uf
-                        break
+                    state = None
+                    for uf in ESTADOS_BR:
+                        if uf in header_text.upper():
+                            state = uf
+                            break
 
-                rows = table.select("tr")
-                for row in rows:
-                    cells = row.select("td, th")
-                    if len(cells) < 2:
-                        continue
+                    rows = table.select("tr")
+                    for row in rows:
+                        cells = row.select("td, th")
+                        if len(cells) < 2:
+                            continue
 
-                    org = self.clean(cells[0].get_text())
-                    vagas_text = self.clean(cells[1].get_text())
+                        org = self.clean(cells[0].get_text())
+                        vagas_text = self.clean(cells[1].get_text())
 
-                    if not org or org.lower() in ("órgão", "orgao", "entidade", "banca"):
-                        continue
+                        if not org or org.lower() in ("órgão", "orgao", "entidade", "banca"):
+                            continue
 
-                    # Link
-                    link_el = cells[0].select_one("a") or row.select_one("a")
-                    href = link_el.get("href", "") if link_el else ""
-                    source_url = href if href.startswith("http") else (
-                        "https://concursosnobrasil.com" + href if href else "https://concursosnobrasil.com/concursos/"
-                    )
+                        link_el = cells[0].select_one("a") or row.select_one("a")
+                        href = link_el.get("href", "") if link_el else ""
+                        source_url = href if href.startswith("http") else (
+                            "https://concursosnobrasil.com" + href if href else url
+                        )
 
-                    # Vagas
-                    vagas_num = re.sub(r"[^\d]", "", vagas_text)
+                        vagas_num = re.sub(r"[^\d]", "", vagas_text)
+                        title = f"Concurso {org}"
+                        if vagas_num:
+                            title += f" — {vagas_num} vagas"
 
-                    title = f"Concurso {org}"
-                    if vagas_num:
-                        title += f" — {vagas_num} vagas"
+                        dedup_key = org.lower()
+                        if dedup_key in seen_orgs:
+                            continue
+                        seen_orgs.add(dedup_key)
 
-                    # Deduplicar concursos nacionais que aparecem em todos os estados
-                    dedup_key = org.lower()
-                    if dedup_key in seen_orgs:
-                        continue
-                    seen_orgs.add(dedup_key)
+                        area = _area_from_categoria(categoria)
 
-                    combined = f"{title} {org}".lower()
-                    if self.keywords and not any(kw in combined for kw in self.keywords):
-                        continue
+                        jobs.append({
+                            "source": self.source_name,
+                            "source_url": source_url,
+                            "title": title[:200],
+                            "organization": org,
+                            "description": f"Área: {area}" if area else None,
+                            "city": None,
+                            "state": state,
+                            "job_type": "concurso",
+                            "deadline": None,
+                            "raw_data": {"vagas": vagas_num or None, "area": area},
+                        })
 
-                    jobs.append({
-                        "source": self.source_name,
-                        "source_url": source_url,
-                        "title": title[:200],
-                        "organization": org,
-                        "description": None,
-                        "city": None,
-                        "state": state,
-                        "job_type": "concurso",
-                        "deadline": None,
-                        "raw_data": {"vagas": vagas_num or None},
-                    })
+            except Exception as e:
+                logger.error("ConcursosNoBrasil '%s' erro: %s", categoria, e)
 
-        except Exception as e:
-            logger.error("ConcursosNoBrasil erro: %s", e)
-
+        logger.info("ConcursosNoBrasil: %d concursos de todas as áreas", len(jobs))
         return jobs
 
 
@@ -150,10 +159,6 @@ class ConcursoPublicoBRScraper(BaseScraper):
                 # Descartar se for data (ex: "Publicado em: 22/04/2025")
                 org = org_text if org_text and "publicado" not in org_text.lower() else None
 
-                combined = f"{title} {org or ''}".lower()
-                if self.keywords and not any(kw in combined for kw in self.keywords):
-                    continue
-
                 jobs.append({
                     "source": self.source_name,
                     "source_url": source_url,
@@ -170,4 +175,21 @@ class ConcursoPublicoBRScraper(BaseScraper):
         except Exception as e:
             logger.error("ConcursoPublicoBR erro: %s", e)
 
+        logger.info("ConcursoPublicoBR: %d concursos", len(jobs))
         return jobs
+
+
+def _area_from_categoria(categoria: str) -> str:
+    mapping = {
+        "saude/":        "Saúde",
+        "administrativo/": "Administrativo",
+        "tecnologia/":   "Tecnologia",
+        "engenharia/":   "Engenharia",
+        "seguranca/":    "Segurança Pública",
+        "educacao/":     "Educação",
+        "juridico/":     "Jurídico",
+        "fiscal/":       "Fiscal / Tributário",
+        "militar/":      "Militar",
+        "meio-ambiente/": "Meio Ambiente",
+    }
+    return mapping.get(categoria, "Geral")
