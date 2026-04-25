@@ -12,6 +12,7 @@ import { cn, formatDate } from '@/lib/utils'
 import type { FormationStatus } from '@/types/database'
 import ResumeUpload from '@/components/ResumeUpload'
 import type { ParsedResume } from '@/lib/gemini'
+import { useTriggerJobSearch } from '@/hooks/useJobSearch'
 
 const profileSchema = z.object({
   full_name: z.string().min(2, 'Nome obrigatório'),
@@ -56,6 +57,7 @@ export default function ProfilePage() {
   const [savedMsg, setSavedMsg] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importMsg, setImportMsg] = useState<string | null>(null)
+  const { trigger: triggerSearch, status: searchStatus, count: searchCount } = useTriggerJobSearch()
 
   const profileForm = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
@@ -110,6 +112,8 @@ export default function ProfilePage() {
       }
 
       setImportMsg(`✓ Importados: ${parsed.formations.length} formações, ${parsed.experiences.length} experiências, ${parsed.keywords.length} competências`)
+      // Busca vagas em background baseada no perfil recém-importado
+      triggerSearch()
     } catch {
       setImportMsg('Erro ao salvar dados importados')
     } finally {
@@ -174,6 +178,16 @@ export default function ProfilePage() {
         {importMsg && (
           <p className={cn('text-xs mt-3', importMsg.startsWith('✓') ? 'text-green-400' : 'text-red-400')}>
             {importMsg}
+          </p>
+        )}
+        {searchStatus === 'searching' && (
+          <p className="text-brand-400 text-xs mt-2 flex items-center gap-1.5">
+            <Loader2 size={12} className="animate-spin" /> Buscando vagas para seu perfil...
+          </p>
+        )}
+        {searchStatus === 'done' && searchCount > 0 && (
+          <p className="text-green-400 text-xs mt-2">
+            ✓ {searchCount} vagas encontradas para seu perfil!
           </p>
         )}
       </section>

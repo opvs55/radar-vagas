@@ -9,6 +9,7 @@ import {
 } from '@/hooks/useProfile'
 import type { ParsedResume } from '@/lib/gemini'
 import { cn } from '@/lib/utils'
+import { useTriggerJobSearch } from '@/hooks/useJobSearch'
 
 type Step = 'welcome' | 'upload' | 'importing' | 'done'
 
@@ -21,6 +22,7 @@ export default function OnboardingPage() {
   const updateProfile = useUpdateProfile()
   const addFormation = useAddFormation()
   const addExperience = useAddExperience()
+  const { trigger: triggerSearch } = useTriggerJobSearch()
 
   const handleParsed = (data: ParsedResume) => {
     setParsed(data)
@@ -62,6 +64,8 @@ export default function OnboardingPage() {
         `${parsed.formations.length} formações · ${parsed.experiences.length} experiências · ${parsed.keywords.length} competências`
       )
       setStep('done')
+      // Busca vagas em background baseada no perfil recém-criado
+      triggerSearch()
     } catch {
       setImportMsg('Erro ao salvar. Tente novamente.')
       setStep('upload')
