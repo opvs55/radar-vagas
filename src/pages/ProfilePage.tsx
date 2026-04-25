@@ -13,6 +13,8 @@ import type { FormationStatus } from '@/types/database'
 import ResumeUpload from '@/components/ResumeUpload'
 import type { ParsedResume } from '@/lib/gemini'
 import { useTriggerJobSearch } from '@/hooks/useJobSearch'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/contexts/AuthContext'
 
 const profileSchema = z.object({
   full_name: z.string().min(2, 'Nome obrigatório'),
@@ -49,6 +51,7 @@ export default function ProfilePage() {
   const deleteFormation = useDeleteFormation()
   const addExperience = useAddExperience()
   const deleteExperience = useDeleteExperience()
+  const { user } = useAuth()
 
   const [showFormationForm, setShowFormationForm] = useState(false)
   const [showExperienceForm, setShowExperienceForm] = useState(false)
@@ -78,6 +81,12 @@ export default function ProfilePage() {
     setImporting(true)
     setImportMsg(null)
     try {
+      // Limpa formações e experiências existentes para evitar duplicatas
+      if (user) {
+        await supabase.from('formations').delete().eq('profile_id', user.id)
+        await supabase.from('experiences').delete().eq('profile_id', user.id)
+      }
+
       await updateProfile.mutateAsync({
         full_name: parsed.full_name ?? undefined,
         city: parsed.city ?? undefined,

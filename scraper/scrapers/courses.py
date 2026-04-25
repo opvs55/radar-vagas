@@ -192,7 +192,7 @@ def scrape_senai_html() -> list[dict]:
 # ─── Fonte 3: Sebrae EaD ─────────────────────────────────────────────────────
 
 def scrape_sebrae() -> list[dict]:
-    url = "https://sebrae.com.br/sites/PortalSebrae/cursosonline"
+    url = "https://eadapp.sebrae.com.br/cursos"
     resp = _get(url)
     if not resp:
         return []
