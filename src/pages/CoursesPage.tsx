@@ -8,6 +8,22 @@ import { supabase } from '@/lib/supabase'
 import { useProfile } from '@/hooks/useProfile'
 import { cn, formatDate } from '@/lib/utils'
 
+// Cursos curados — sempre exibidos como fallback
+const CURATED_COURSES: Course[] = [
+  { id: 'c1',  source: 'fundacao_bradesco',  source_url: 'https://www.ev.org.br/Areas/Gratuitos', title: 'Lógica de Programação', organization: 'Fundação Bradesco', description: 'Introdução ao raciocínio lógico e algoritmos para quem está começando na tecnologia.', area: 'tecnologia', level: 'básico', modality: 'online', price: 0, deadline: null, starts_at: null, duration: '20h', city: null, state: null, created_at: '' },
+  { id: 'c2',  source: 'fundacao_bradesco',  source_url: 'https://www.ev.org.br/Areas/Gratuitos', title: 'Excel Básico ao Avançado', organization: 'Fundação Bradesco', description: 'Aprenda planilhas, fórmulas e automações com Excel, do básico ao avançado.', area: 'administracao', level: 'básico', modality: 'online', price: 0, deadline: null, starts_at: null, duration: '30h', city: null, state: null, created_at: '' },
+  { id: 'c3',  source: 'fundacao_bradesco',  source_url: 'https://www.ev.org.br/Areas/Gratuitos', title: 'Design Gráfico', organization: 'Fundação Bradesco', description: 'Fundamentos de design gráfico: cores, tipografia, composição e ferramentas digitais.', area: 'design', level: 'básico', modality: 'online', price: 0, deadline: null, starts_at: null, duration: '40h', city: null, state: null, created_at: '' },
+  { id: 'c4',  source: 'escola_virtual_gov', source_url: 'https://www.escolavirtual.gov.br/cursos', title: 'Ética no Serviço Público', organization: 'Escola Virtual Gov (MEC)', description: 'Conceitos de ética, integridade e conduta no setor público brasileiro.', area: 'administracao', level: 'básico', modality: 'online', price: 0, deadline: null, starts_at: null, duration: '20h', city: null, state: null, created_at: '' },
+  { id: 'c5',  source: 'escola_virtual_gov', source_url: 'https://www.escolavirtual.gov.br/cursos', title: 'Inclusão e Diversidade', organization: 'Escola Virtual Gov (MEC)', description: 'Curso sobre equidade, diversidade e inclusão no ambiente de trabalho e social.', area: 'educacao', level: 'básico', modality: 'online', price: 0, deadline: null, starts_at: null, duration: '15h', city: null, state: null, created_at: '' },
+  { id: 'c6',  source: 'sebrae',             source_url: 'https://sebrae.com.br/sites/PortalSebrae/cursosonline', title: 'Como Montar um Negócio', organization: 'Sebrae', description: 'Aprenda a estruturar seu próprio negócio: plano, modelo de negócio e mercado.', area: 'administracao', level: 'básico', modality: 'online', price: 0, deadline: null, starts_at: null, duration: '6h', city: null, state: null, created_at: '' },
+  { id: 'c7',  source: 'sebrae',             source_url: 'https://sebrae.com.br/sites/PortalSebrae/cursosonline', title: 'Marketing Digital para Iniciantes', organization: 'Sebrae', description: 'Estratégias de marketing digital, redes sociais e presença online para pequenos negócios.', area: 'comunicacao', level: 'básico', modality: 'online', price: 0, deadline: null, starts_at: null, duration: '8h', city: null, state: null, created_at: '' },
+  { id: 'c8',  source: 'futurelearn',        source_url: 'https://www.futurelearn.com/courses?filter_category=creative-arts-and-media&filter_availability=open', title: 'Introduction to Creative Arts', organization: 'FutureLearn', description: 'Explore painting, drawing, photography and creative expression with leading educators.', area: 'design', level: 'básico', modality: 'online', price: 0, deadline: null, starts_at: null, duration: '3 semanas', city: null, state: null, created_at: '' },
+  { id: 'c9',  source: 'senai',              source_url: 'https://www.sp.senai.br/cursos-gratuitos', title: 'Manutenção de Computadores', organization: 'SENAI', description: 'Hardware, software e manutenção preventiva e corretiva de equipamentos de informática.', area: 'tecnologia', level: 'técnico', modality: 'online', price: 0, deadline: null, starts_at: null, duration: '60h', city: null, state: 'SP', created_at: '' },
+  { id: 'c10', source: 'senai',              source_url: 'https://www.sp.senai.br/cursos-gratuitos', title: 'Segurança do Trabalho', organization: 'SENAI', description: 'Normas regulamentadoras, prevenção de acidentes e saúde ocupacional.', area: 'engenharia', level: 'técnico', modality: 'online', price: 0, deadline: null, starts_at: null, duration: '40h', city: null, state: 'SP', created_at: '' },
+  { id: 'c11', source: 'fundacao_bradesco',  source_url: 'https://www.ev.org.br/Areas/Gratuitos', title: 'Comunicação Empresarial', organization: 'Fundação Bradesco', description: 'Técnicas de comunicação verbal, escrita e apresentação no ambiente corporativo.', area: 'comunicacao', level: 'básico', modality: 'online', price: 0, deadline: null, starts_at: null, duration: '20h', city: null, state: null, created_at: '' },
+  { id: 'c12', source: 'escola_virtual_gov', source_url: 'https://www.escolavirtual.gov.br/cursos', title: 'Educação Especial e Inclusiva', organization: 'Escola Virtual Gov (MEC)', description: 'Formação para educadores e profissionais da área de educação especial e inclusão.', area: 'educacao', level: 'básico', modality: 'online', price: 0, deadline: null, starts_at: null, duration: '40h', city: null, state: null, created_at: '' },
+]
+
 interface Course {
   id: string
   source: string
@@ -174,7 +190,7 @@ export default function CoursesPage() {
   const [onlyFree, setOnlyFree]     = useState(false)
   const [onlyOpen, setOnlyOpen]     = useState(false)
 
-  const { data: courses = [], isLoading } = useQuery({
+  const { data: dbCourses = [], isLoading } = useQuery({
     queryKey: ['courses'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -187,6 +203,9 @@ export default function CoursesPage() {
       return (data ?? []) as Course[]
     },
   })
+
+  // Usa DB se tiver dados, senão fallback curado
+  const courses = dbCourses.length > 0 ? dbCourses : CURATED_COURSES
 
   // Áreas presentes nos dados
   const availableAreas = ['todas', ...Array.from(new Set(courses.map(c => c.area).filter(Boolean))) as string[]]
@@ -307,11 +326,19 @@ export default function CoursesPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {sorted.map(course => (
-            <CourseCard key={course.id} course={course} />
-          ))}
-        </div>
+        <>
+          {dbCourses.length === 0 && (
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600/10 border border-brand-500/20 text-xs text-brand-300">
+              <GraduationCap size={13} />
+              Exibindo cursos curados. O scraper populará mais opções automaticamente todo dia.
+            </div>
+          )}
+          <div className="space-y-3">
+            {sorted.map(course => (
+              <CourseCard key={course.id} course={course} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   )
