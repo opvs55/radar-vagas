@@ -24,9 +24,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r scraper/requirements.txt
 
-      - name: Install Playwright browsers
-        run: playwright install chromium --with-deps
-
       - name: Run scraper
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
