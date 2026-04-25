@@ -11,7 +11,7 @@ import schedule
 import time
 
 from config import KEYWORDS_DEFAULT
-from db import upsert_job, count_jobs
+from db import upsert_job, count_jobs, get_client
 from geocoder import run as geocode_all
 from scrapers.pci_concursos import PCIConcursosScraper
 from scrapers.vunesp import GranCursosScraper
