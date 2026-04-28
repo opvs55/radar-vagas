@@ -65,203 +65,172 @@ def _detect_area(text: str) -> str:
     return "outro"
 
 
-# ─── Fonte 1: Fundação Bradesco — API JSON ───────────────────────────────────
+# ─── Fonte 1: Fundação Bradesco (ev.org.br) — HTML verificado ───────────────
 
 def scrape_fundacao_bradesco() -> list[dict]:
-    courses = []
-    for page in range(1, 4):
-        resp = _get(
-            "https://www.ev.org.br/api/courses",
-            params={"page": page, "pageSize": 30, "isFree": "true"},
-        )
-        if not resp:
-            break
-        try:
-            data = resp.json()
-            items = data.get("items") or data.get("data") or data.get("courses") or []
-            if not items:
-                break
-            for c in items:
-                title = (c.get("name") or c.get("title") or "").strip()
-                if not title:
-                    continue
-                slug = c.get("slug") or c.get("id") or ""
-                href = f"https://www.ev.org.br/cursos/{slug}" if slug else "https://www.ev.org.br"
-                courses.append({
-                    "source": "fundacao_bradesco", "source_url": href,
-                    "title": title, "organization": "Fundação Bradesco",
-                    "description": c.get("description") or c.get("shortDescription"),
-                    "area": _detect_area(title), "level": "básico",
-                    "modality": "online", "price": 0, "state": None, "city": None,
-                })
-        except Exception:
-            break
-    if not courses:
-        courses = _scrape_bradesco_html()
-    logger.info("Fundação Bradesco: %d cursos", len(courses))
-    return courses
-
-
-def _scrape_bradesco_html() -> list[dict]:
     from bs4 import BeautifulSoup
     courses = []
-    for url in ["https://www.ev.org.br/cursos", "https://www.ev.org.br/trilhas-de-conhecimento"]:
+    seen: set[str] = set()
+    for url in ["https://www.ev.org.br/cursos", "https://www.ev.org.br"]:
         resp = _get(url)
         if not resp:
             continue
         soup = BeautifulSoup(resp.text, "html.parser")
-        for a in soup.select("a[href*='/cursos/']")[:30]:
-            title_el = a.select_one("h2, h3, h4, p, span")
-            title = title_el.get_text(strip=True) if title_el else a.get_text(strip=True)
-            if not title or len(title) < 5:
-                continue
+        for a in soup.select("a[href*='/cursos/']"):
             href = a["href"]
             if not href.startswith("http"):
                 href = "https://www.ev.org.br" + href
+            if href in seen:
+                continue
+            seen.add(href)
+            title = a.get_text(strip=True)
+            if not title or len(title) < 5:
+                continue
             courses.append({
                 "source": "fundacao_bradesco", "source_url": href,
-                "title": title, "organization": "Fundação Bradesco",
+                "title": title[:200], "organization": "Fundação Bradesco",
                 "description": None, "area": _detect_area(title),
                 "level": "básico", "modality": "online", "price": 0,
                 "state": None, "city": None,
             })
+        if courses:
+            break
+    logger.info("Fundação Bradesco: %d cursos", len(courses))
     return courses
 
 
-# ─── Fonte 2: SENAI — API REST ───────────────────────────────────────────────
+# ─── Fonte 2: SENAI — cursos gratuitos online ────────────────────────────────
 
 def scrape_senai() -> list[dict]:
+    from bs4 import BeautifulSoup
     courses = []
-    endpoints = [
-        "https://www.senai.br/api/courses?type=free&limit=50",
-        "https://online.sp.senai.br/api/courses?free=true&limit=50",
+    urls_to_try = [
+        "https://online.sp.senai.br/cursos/gratuitos",
+        "https://www.sp.senai.br/cursos?gratis=true",
+        "https://online.senai.br/cursos-gratuitos",
     ]
-    for url in endpoints:
+    for url in urls_to_try:
         resp = _get(url)
         if not resp:
             continue
-        try:
-            data = resp.json()
-            items = data.get("data") or data.get("courses") or data.get("items") or []
-            for c in items:
-                title = (c.get("name") or c.get("title") or "").strip()
-                if not title:
-                    continue
-                href = c.get("url") or c.get("link") or "https://online.sp.senai.br"
-                courses.append({
-                    "source": "senai", "source_url": href,
-                    "title": title, "organization": "SENAI",
-                    "description": c.get("description"),
-                    "area": _detect_area(title), "level": "técnico",
-                    "modality": "online", "price": 0, "state": "SP", "city": None,
-                })
-            if courses:
-                break
-        except Exception:
-            continue
+        soup = BeautifulSoup(resp.text, "html.parser")
+        for card in soup.select("[class*='course'], [class*='curso'], [class*='card']")[:40]:
+            title_el = card.select_one("h2, h3, h4, .title, [class*='title'], [class*='name']")
+            if not title_el:
+                continue
+            title = title_el.get_text(strip=True)
+            if not title or len(title) < 5:
+                continue
+            link_el = card.select_one("a[href]")
+            href = link_el["href"] if link_el else url
+            if href and not href.startswith("http"):
+                href = "https://online.sp.senai.br" + href
+            courses.append({
+                "source": "senai", "source_url": href,
+                "title": title[:200], "organization": "SENAI",
+                "description": None, "area": _detect_area(title),
+                "level": "técnico", "modality": "online", "price": 0,
+                "state": "SP", "city": None,
+            })
+        if courses:
+            break
     logger.info("SENAI: %d cursos", len(courses))
     return courses
 
 
-# ─── Fonte 3: Sebrae — API REST ─────────────────────────────────────────────
+# ─── Fonte 3: Sebrae — cursos gratuitos ─────────────────────────────────────
 
 def scrape_sebrae() -> list[dict]:
+    from bs4 import BeautifulSoup
     courses = []
-    endpoints = [
-        "https://digital.sebrae.com.br/api/courses?free=true&limit=50",
-        "https://www.sebrae.com.br/api/cursos?gratuito=true&limit=50",
+    urls_to_try = [
+        "https://sebrae.com.br/sites/PortalSebrae/cursosonline",
+        "https://www.sebrae.com.br/sites/PortalSebrae/cursosonline",
     ]
-    for url in endpoints:
+    for url in urls_to_try:
         resp = _get(url)
         if not resp:
             continue
-        try:
-            data = resp.json()
-            items = data.get("data") or data.get("cursos") or data.get("items") or []
-            for c in items:
-                title = (c.get("titulo") or c.get("name") or c.get("title") or "").strip()
-                if not title:
-                    continue
-                href = c.get("url") or c.get("link") or "https://sebrae.com.br/cursos"
-                courses.append({
-                    "source": "sebrae", "source_url": href,
-                    "title": title, "organization": "Sebrae",
-                    "description": c.get("descricao") or c.get("description"),
-                    "area": _detect_area(title), "level": "básico",
-                    "modality": "online", "price": 0, "state": None, "city": None,
-                })
-            if courses:
-                break
-        except Exception:
-            continue
+        soup = BeautifulSoup(resp.text, "html.parser")
+        for a in soup.select("a[href*='curso']")[:40]:
+            title = a.get_text(strip=True)
+            if not title or len(title) < 5:
+                continue
+            href = a["href"]
+            if not href.startswith("http"):
+                href = "https://sebrae.com.br" + href
+            courses.append({
+                "source": "sebrae", "source_url": href,
+                "title": title[:200], "organization": "Sebrae",
+                "description": None, "area": _detect_area(title),
+                "level": "básico", "modality": "online", "price": 0,
+                "state": None, "city": None,
+            })
+        if courses:
+            break
     logger.info("Sebrae: %d cursos", len(courses))
     return courses
 
 
-# ─── Fonte 4: Escola Virtual Gov (MEC) — API REST ───────────────────────────
+# ─── Fonte 4: Escola Virtual Gov (MEC) — HTML verificado ────────────────────
 
 def scrape_escola_virtual_gov() -> list[dict]:
+    from bs4 import BeautifulSoup
     courses = []
-    resp = _get(
-        "https://www.escolavirtual.gov.br/api/cursos",
-        params={"page": 1, "limit": 50, "gratuito": "true"},
-    )
-    if resp:
-        try:
-            data = resp.json()
-            items = data.get("data") or data.get("cursos") or data.get("results") or []
-            for c in items:
-                title = (c.get("titulo") or c.get("name") or c.get("title") or "").strip()
-                if not title:
-                    continue
-                href = c.get("url") or c.get("link") or "https://www.escolavirtual.gov.br"
-                if href and not href.startswith("http"):
-                    href = "https://www.escolavirtual.gov.br" + href
-                courses.append({
-                    "source": "escola_virtual_gov", "source_url": href,
-                    "title": title, "organization": "Escola Virtual Gov (MEC)",
-                    "description": c.get("descricao") or c.get("description"),
-                    "area": _detect_area(title), "level": "básico",
-                    "modality": "online", "price": 0, "state": None, "city": None,
-                })
-        except Exception:
-            pass
+    seen: set[str] = set()
+    resp = _get("https://www.escolavirtual.gov.br/catalogo")
+    if not resp:
+        resp = _get("https://www.escolavirtual.gov.br")
+    if not resp:
+        logger.info("Escola Virtual Gov: 0 cursos")
+        return []
+    soup = BeautifulSoup(resp.text, "html.parser")
+    for a in soup.select("a[href*='/curso']"):
+        href = a["href"]
+        if not href.startswith("http"):
+            href = "https://www.escolavirtual.gov.br" + href
+        if href in seen:
+            continue
+        seen.add(href)
+        title = a.get_text(strip=True)
+        if not title or len(title) < 5:
+            continue
+        courses.append({
+            "source": "escola_virtual_gov", "source_url": href,
+            "title": title[:200], "organization": "Escola Virtual Gov (MEC)",
+            "description": None, "area": _detect_area(title),
+            "level": "básico", "modality": "online", "price": 0,
+            "state": None, "city": None,
+        })
     logger.info("Escola Virtual Gov: %d cursos", len(courses))
     return courses
 
 
-# ─── Fonte 5: Coursera — RSS por categoria ──────────────────────────────────
+# ─── Fonte 5: Class Central — RSS verificado ─────────────────────────────────
 
-def scrape_coursera_rss() -> list[dict]:
-    feeds = [
-        ("https://www.coursera.org/sitemap~www~courses.xml", "Coursera"),
-    ]
+def scrape_classcentral_rss() -> list[dict]:
     courses = []
-    rss_urls = [
-        "https://www.classcentral.com/report/feed/?tag=free-certificate",
-    ]
-    for url in rss_urls:
-        resp = _get(url, timeout=20)
-        if not resp:
-            continue
-        try:
-            root = ET.fromstring(resp.content)
-            for item in root.findall(".//item")[:40]:
-                title = (item.findtext("title") or "").strip()
-                link  = (item.findtext("link") or "").strip()
-                desc  = re.sub(r"<[^>]+>", " ", item.findtext("description") or "").strip()[:400]
-                if not title:
-                    continue
-                courses.append({
-                    "source": "classcentral", "source_url": link or url,
-                    "title": title, "organization": "Class Central",
-                    "description": desc or None,
-                    "area": _detect_area(title + " " + desc), "level": "básico",
-                    "modality": "online", "price": 0, "state": None, "city": None,
-                })
-        except Exception as e:
-            logger.warning("Coursera RSS: %s", e)
-
+    resp = _get("https://www.classcentral.com/report/feed/", timeout=20)
+    if not resp:
+        logger.info("Class Central RSS: 0 cursos")
+        return []
+    try:
+        root = ET.fromstring(resp.content)
+        for item in root.findall(".//item")[:30]:
+            title = (item.findtext("title") or "").strip()
+            link  = (item.findtext("link") or "").strip()
+            desc  = re.sub(r"<[^>]+>", " ", item.findtext("description") or "").strip()[:400]
+            if not title:
+                continue
+            courses.append({
+                "source": "classcentral", "source_url": link,
+                "title": title[:200], "organization": "Class Central",
+                "description": desc or None,
+                "area": _detect_area(title + " " + desc), "level": "básico",
+                "modality": "online", "price": 0, "state": None, "city": None,
+            })
+    except Exception as e:
+        logger.warning("Class Central RSS parse: %s", e)
     logger.info("Class Central RSS: %d cursos", len(courses))
     return courses
 
@@ -276,7 +245,7 @@ def scrape_all_courses() -> list[dict]:
         ("SENAI",             scrape_senai),
         ("Sebrae",            scrape_sebrae),
         ("Escola Virtual Gov", scrape_escola_virtual_gov),
-        ("Class Central",     scrape_coursera_rss),
+        ("Class Central",     scrape_classcentral_rss),
     ]
 
     for name, fn in scrapers:
