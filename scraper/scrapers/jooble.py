@@ -44,11 +44,17 @@ class JoobleScraper(BaseScraper):
         logger.info("Jooble: %d vagas únicas", len(unique))
         return unique
 
+    @staticmethod
+    def _normalize_location(loc: str) -> str:
+        import unicodedata
+        nfkd = unicodedata.normalize("NFKD", loc)
+        return "".join(c for c in nfkd if not unicodedata.combining(c))
+
     def _fetch(self, keyword: str) -> list[dict]:
         url = JOOBLE_API_URL.format(key=self.api_key)
         payload = {
             "keywords": keyword,
-            "location": self.location,
+            "location": self._normalize_location(self.location),
             "resultsOnPage": self.max_results,
         }
         try:
