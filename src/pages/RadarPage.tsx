@@ -167,6 +167,8 @@ export default function RadarPage() {
   const [onlyZone, setOnlyZone] = useState(false)
   const [sortBy, setSortBy] = useState<'score' | 'distance' | 'date'>('score')
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 20
   type EnrichedJob = Job & { distance?: number; match_score?: number; ai_score?: number; ai_reason?: string; keyword_hits?: number; distance_km?: number | null }
   const [selectedJob, setSelectedJob] = useState<EnrichedJob | null>(null)
 
@@ -243,12 +245,26 @@ export default function RadarPage() {
   })
 
   const computeScore = (job: Job): number => {
-    let score = 50
     const keywords = profile?.keywords ?? []
-    const text = `${job.title} ${job.description ?? ''}`.toLowerCase()
-    keywords.forEach(kw => { if (text.includes(kw.toLowerCase())) score += 10 })
-    if (profile?.job_types?.includes(job.job_type ?? '')) score += 15
-    return Math.min(score, 100)
+    if (keywords.length === 0) return 50
+    const titleText = job.title.toLowerCase()
+    const descText = (job.description ?? '').toLowerCase()
+    let hits = 0
+    let titleHits = 0
+    for (const kw of keywords) {
+      const k = kw.toLowerCase()
+      if (titleText.includes(k)) { hits++; titleHits++ }
+      else if (descText.includes(k)) hits++
+    }
+    // Base: 30 pontos, +5 por hit na descrição, +10 por hit no título
+    let score = 30 + (hits * 5) + (titleHits * 5)
+    // Bônus: tipo de vaga preferido
+    if (profile?.job_types?.includes(job.job_type ?? '')) score += 10
+    // Bônus: mesma cidade
+    if (profile?.city && job.city?.toLowerCase().includes(profile.city.toLowerCase())) score += 10
+    // Bônus: mesmo estado
+    if (profile?.state && job.state === profile.state) score += 5
+    return Math.min(Math.max(score, 10), 100)
   }
 
   const enriched = jobs.map(job => {
@@ -302,6 +318,13 @@ export default function RadarPage() {
       const scoreB = b.ai_score ?? b.match_score ?? 0
       return scoreB - scoreA
     })
+
+  // Reset página ao mudar filtros
+  useEffect(() => { setPage(1) }, [search, filterType, filterSource, onlyZone, sortBy])
+
+  const totalFiltered = filtered.length
+  const totalPages = Math.ceil(totalFiltered / PAGE_SIZE)
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   // Categorias dinâmicas baseadas nas vagas disponíveis (remove categorias sem vagas)
   const availableTypes = ['todos', ...Array.from(new Set(enriched.map(j => j.job_type).filter(Boolean))) as string[]]
@@ -414,18 +437,64 @@ export default function RadarPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {filtered.map(job => (
-            <JobCard
-              key={job.id}
-              job={job}
-              saved={savedJobIds.has(job.id)}
-              onSave={() => saveJob.mutate(job.id)}
-              onClick={() => setSelectedJob(job)}
-              showFirstJobBadge={!!profile?.first_job}
-            />
-          ))}
-        </div>
+        <>
+          <div className="space-y-3">
+            {paginated.map(job => (
+              <JobCard
+                key={job.id}
+                job={job}
+                saved={savedJobIds.has(job.id)}
+                onSave={() => saveJob.mutate(job.id)}
+                onClick={() => setSelectedJob(job)}
+                showFirstJobBadge={!!profile?.first_job}
+              />
+            ))}
+          </div>
+
+          {/* Paginação */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-2 pb-6">
+              <button
+                onClick={() => { setPage(p => Math.max(1, p - 1)); window.scrollTo(0,0) }}
+                disabled={page === 1}
+                className="px-3 py-1.5 rounded-lg text-xs border border-surface-border text-gray-400 hover:text-white hover:border-brand-500 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                ← Anterior
+              </button>
+
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                  let p: number
+                  if (totalPages <= 7) p = i + 1
+                  else if (page <= 4) p = i + 1
+                  else if (page >= totalPages - 3) p = totalPages - 6 + i
+                  else p = page - 3 + i
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => { setPage(p); window.scrollTo(0,0) }}
+                      className={`w-8 h-8 rounded-lg text-xs font-medium transition-all ${
+                        p === page
+                          ? 'bg-brand-600 text-white'
+                          : 'border border-surface-border text-gray-400 hover:text-white hover:border-brand-500'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  )
+                })}
+              </div>
+
+              <button
+                onClick={() => { setPage(p => Math.min(totalPages, p + 1)); window.scrollTo(0,0) }}
+                disabled={page === totalPages}
+                className="px-3 py-1.5 rounded-lg text-xs border border-surface-border text-gray-400 hover:text-white hover:border-brand-500 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                Próxima →
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {selectedJob && (

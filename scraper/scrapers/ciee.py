@@ -43,24 +43,57 @@ class CIEEScraper(BaseScraper):
     def _search(self, keyword: str) -> list[dict]:
         jobs = []
         for page in range(1, self.max_pages + 1):
-            url = (
-                f"https://portal.ciee.org.br/vagas/?q={requests.utils.quote(keyword)}&page={page}"
-            )
+            # API REST pública do portal CIEE
+            url = "https://www.ciee.org.br/api/v2/vagas"
+            params = {
+                "busca": keyword,
+                "pagina": page,
+                "quantidade": 20,
+            }
             try:
-                resp = requests.get(url, headers=HEADERS, timeout=15)
+                resp = requests.get(url, params=params, headers=HEADERS, timeout=15)
                 resp.raise_for_status()
-                soup = BeautifulSoup(resp.text, "html.parser")
-                cards = soup.select(".vaga-card, .card-vaga, [class*='vaga']")
-                if not cards:
+                data = resp.json()
+                items = data.get("vagas") or data.get("data") or data.get("items") or []
+                if not items:
                     break
-                for card in cards:
-                    job = self._parse(card, keyword)
+                for item in items:
+                    job = self._parse_api(item, keyword)
                     if job:
                         jobs.append(job)
             except Exception as e:
-                logger.warning("CIEE '%s' p%d: %s", keyword, page, e)
+                logger.warning("CIEE API '%s' p%d: %s", keyword, page, e)
                 break
         return jobs
+
+    def _parse_api(self, item: dict, keyword: str) -> dict | None:
+        try:
+            title = self.clean(item.get("titulo") or item.get("title") or item.get("cargo") or "")
+            if not title:
+                return None
+            company = item.get("empresa") or item.get("company") or item.get("razaoSocial")
+            city = item.get("cidade") or item.get("city") or item.get("municipio")
+            state = item.get("estado") or item.get("state") or item.get("uf")
+            slug = item.get("slug") or item.get("id") or ""
+            href = f"https://portal.ciee.org.br/vaga/{slug}" if slug else "https://portal.ciee.org.br"
+            jtype = "temporario" if any(k in title.lower() for k in ["estágio", "estagio", "trainee", "aprendiz"]) else "clt"
+            return {
+                "source": self.source_name,
+                "source_url": href,
+                "title": title,
+                "organization": str(company) if company else None,
+                "description": item.get("descricao") or f"Vaga via CIEE. Busca: {keyword}",
+                "city": str(city) if city else None,
+                "state": str(state) if state else None,
+                "job_type": jtype,
+                "salary_min": None,
+                "salary_max": None,
+                "deadline": None,
+                "raw_data": {"keyword": keyword},
+            }
+        except Exception as e:
+            logger.debug("CIEE parse_api error: %s", e)
+            return None
 
     def _parse(self, card, keyword: str) -> dict | None:
         try:
