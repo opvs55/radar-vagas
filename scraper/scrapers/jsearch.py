@@ -35,67 +35,75 @@ class JSearchScraper:
             return []
 
         jobs = []
-        try:
-            logger.info("▶ Iniciando scraper: jsearch")
-            query = " ".join(self.keywords[:4]) if self.keywords else "professor educacao Brasil"
-            location_str = self.location or "Brasil"
-            params = {
-                "query": f"{query} {location_str}",
-                "page": "1",
-                "num_pages": "3",
-                "country": "br",
-                "language": "pt",
-            }
-            headers = {**HEADERS_BASE, "x-rapidapi-key": self.api_key}
+        headers = {**HEADERS_BASE, "x-rapidapi-key": self.api_key}
+        location_str = self.location or "Brasil"
+        kws = self.keywords[:4] if self.keywords else ["emprego", "vaga"]
+        seen_urls: set[str] = set()
 
-            resp = requests.get(API_URL, params=params, headers=headers, timeout=15)
-            resp.raise_for_status()
-            data = resp.json().get("data", [])
+        for kw in kws:
+            try:
+                params = {
+                    "query": f"{kw} em {location_str}",
+                    "page": "1",
+                    "num_pages": "1",
+                    "country": "br",
+                    "language": "pt",
+                }
+                resp = requests.get(API_URL, params=params, headers=headers, timeout=15)
 
-            for item in data:
-                title = (item.get("job_title") or "").strip()
-                if not title:
-                    continue
+                if resp.status_code in (403, 429):
+                    logger.warning("JSearch: limite de plano atingido (HTTP %d) — pulando", resp.status_code)
+                    break
 
-                company = (item.get("employer_name") or "").strip()
-                city = item.get("job_city")
-                state = item.get("job_state")
-                country = item.get("job_country", "")
-                url = item.get("job_apply_link") or item.get("job_google_link", "")
-                description = (item.get("job_description") or "")[:500]
-                pub_date = (item.get("job_posted_at_datetime_utc") or "")[:10] or None
-                salary_min = item.get("job_min_salary")
-                salary_max = item.get("job_max_salary")
-                employment_type = (item.get("job_employment_type") or "").lower()
+                resp.raise_for_status()
+                data = resp.json().get("data", [])
 
-                job_type = "clt"
-                if "contract" in employment_type or "pj" in employment_type:
-                    job_type = "pj"
-                elif "temporary" in employment_type:
-                    job_type = "temporario"
+                for item in data:
+                    title = (item.get("job_title") or "").strip()
+                    if not title:
+                        continue
+                    url = item.get("job_apply_link") or item.get("job_google_link", "")
+                    if url in seen_urls:
+                        continue
+                    seen_urls.add(url)
 
-                if country and country.upper() not in ("BR", "BRAZIL", "BRASIL", ""):
-                    continue
+                    country = item.get("job_country", "")
+                    if country and country.upper() not in ("BR", "BRAZIL", "BRASIL", ""):
+                        continue
 
-                jobs.append({
-                    "source": self.source_name,
-                    "source_url": url,
-                    "title": title[:200],
-                    "organization": company or None,
-                    "description": description or None,
-                    "city": city,
-                    "state": state,
-                    "job_type": job_type,
-                    "salary_min": float(salary_min) if salary_min else None,
-                    "salary_max": float(salary_max) if salary_max else None,
-                    "deadline": None,
-                    "published_at": pub_date,
-                    "raw_data": {"employer_logo": item.get("employer_logo")},
-                })
+                    company = (item.get("employer_name") or "").strip()
+                    city = item.get("job_city")
+                    state = item.get("job_state")
+                    description = (item.get("job_description") or "")[:500]
+                    pub_date = (item.get("job_posted_at_datetime_utc") or "")[:10] or None
+                    salary_min = item.get("job_min_salary")
+                    salary_max = item.get("job_max_salary")
+                    employment_type = (item.get("job_employment_type") or "").lower()
 
-            logger.info("✓ jsearch: %d vagas coletadas", len(jobs))
+                    job_type = "clt"
+                    if "contract" in employment_type or "pj" in employment_type:
+                        job_type = "pj"
+                    elif "temporary" in employment_type or "intern" in employment_type:
+                        job_type = "temporario"
 
-        except Exception as e:
-            logger.error("JSearch erro: %s", e)
+                    jobs.append({
+                        "source": self.source_name,
+                        "source_url": url,
+                        "title": title[:200],
+                        "organization": company or None,
+                        "description": description or None,
+                        "city": city,
+                        "state": state,
+                        "job_type": job_type,
+                        "salary_min": float(salary_min) if salary_min else None,
+                        "salary_max": float(salary_max) if salary_max else None,
+                        "deadline": None,
+                        "published_at": pub_date,
+                        "raw_data": {"keyword": kw, "employer_logo": item.get("employer_logo")},
+                    })
 
+            except Exception as e:
+                logger.error("JSearch '%s' erro: %s", kw, e)
+
+        logger.info("✓ jsearch: %d vagas coletadas", len(jobs))
         return jobs

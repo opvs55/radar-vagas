@@ -116,14 +116,10 @@ def _parse_salary(text: str | None) -> tuple[float | None, float | None]:
 
 def _infer_job_type(title: str, desc: str) -> str:
     text = (title + " " + desc).lower()
-    if any(k in text for k in ["estágio", "estagio", "intern"]):
-        return "estagio"
-    if any(k in text for k in ["aprendiz", "jovem aprendiz"]):
-        return "aprendiz"
+    if any(k in text for k in ["estágio", "estagio", "intern", "aprendiz", "jovem aprendiz", "trainee"]):
+        return "temporario"
     if any(k in text for k in ["concurso", "edital"]):
         return "concurso"
-    if any(k in text for k in ["pj", "pessoa jurídica"]):
+    if any(k in text for k in ["pj", "pessoa jurídica", "cnpj"]):
         return "pj"
-    if any(k in text for k in ["clt", "carteira"]):
-        return "clt"
     return "clt"

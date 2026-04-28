@@ -34,63 +34,65 @@ class AdzunaScraper:
             return []
 
         jobs = []
-        try:
-            logger.info("▶ Iniciando scraper: adzuna")
-            query = " ".join(self.keywords[:5]) if self.keywords else "professor educacao"
-            params = {
-                "app_id": self.app_id,
-                "app_key": self.app_key,
-                "results_per_page": 50,
-                "what": query,
-                "content-type": "application/json",
-            }
-            if self.location:
-                params["where"] = self.location
+        kws = self.keywords[:5] if self.keywords else ["emprego", "vaga"]
+        seen_urls: set[str] = set()
 
-            for page in range(1, 4):  # até 3 páginas = 150 vagas
-                resp = requests.get(f"{BASE_URL}/{page}", params=params, timeout=15)
-                resp.raise_for_status()
-                data = resp.json()
-                results = data.get("results", [])
-                if not results:
-                    break
+        for kw in kws:
+            try:
+                params = {
+                    "app_id": self.app_id,
+                    "app_key": self.app_key,
+                    "results_per_page": 30,
+                    "what": kw,
+                    "content-type": "application/json",
+                }
+                if self.location:
+                    params["where"] = self.location
 
-                for item in results:
-                    title = (item.get("title") or "").strip()
-                    if not title:
-                        continue
+                for page in range(1, 3):  # 2 páginas por keyword = 60 vagas
+                    resp = requests.get(f"{BASE_URL}/{page}", params=params, timeout=15)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    results = data.get("results", [])
+                    if not results:
+                        break
 
-                    company = (item.get("company", {}).get("display_name") or "").strip()
-                    location = item.get("location", {})
-                    area = location.get("area", [])
-                    city = area[-1] if area else None
-                    state = area[-2] if len(area) >= 2 else None
+                    for item in results:
+                        title = (item.get("title") or "").strip()
+                        if not title:
+                            continue
+                        url = item.get("redirect_url") or item.get("adref", "")
+                        if url in seen_urls:
+                            continue
+                        seen_urls.add(url)
 
-                    salary_min = item.get("salary_min")
-                    salary_max = item.get("salary_max")
-                    url = item.get("redirect_url") or item.get("adref", "")
-                    description = (item.get("description") or "")[:500]
-                    created = (item.get("created") or "")[:10] or None
+                        company = (item.get("company", {}).get("display_name") or "").strip()
+                        location_data = item.get("location", {})
+                        area = location_data.get("area", [])
+                        city = area[-1] if area else None
+                        state = area[-2] if len(area) >= 2 else None
+                        salary_min = item.get("salary_min")
+                        salary_max = item.get("salary_max")
+                        description = (item.get("description") or "")[:500]
+                        created = (item.get("created") or "")[:10] or None
 
-                    jobs.append({
-                        "source": self.source_name,
-                        "source_url": url,
-                        "title": title[:200],
-                        "organization": company or None,
-                        "description": description or None,
-                        "city": city,
-                        "state": state,
-                        "job_type": "clt",
-                        "salary_min": float(salary_min) if salary_min else None,
-                        "salary_max": float(salary_max) if salary_max else None,
-                        "deadline": None,
-                        "published_at": created,
-                        "raw_data": {"category": item.get("category", {}).get("label")},
-                    })
+                        jobs.append({
+                            "source": self.source_name,
+                            "source_url": url,
+                            "title": title[:200],
+                            "organization": company or None,
+                            "description": description or None,
+                            "city": city,
+                            "state": state,
+                            "job_type": "clt",
+                            "salary_min": float(salary_min) if salary_min else None,
+                            "salary_max": float(salary_max) if salary_max else None,
+                            "deadline": None,
+                            "published_at": created,
+                            "raw_data": {"keyword": kw, "category": item.get("category", {}).get("label")},
+                        })
+            except Exception as e:
+                logger.error("Adzuna '%s' erro: %s", kw, e)
 
-            logger.info("✓ adzuna: %d vagas coletadas", len(jobs))
-
-        except Exception as e:
-            logger.error("Adzuna erro: %s", e)
-
+        logger.info("✓ adzuna: %d vagas coletadas", len(jobs))
         return jobs
